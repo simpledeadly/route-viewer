@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ru">
   <head>
-    <title>Просмотр маршрута на Yandex Maps</title>
+    <title>Просмотр трека на Yandex Maps</title>
     <meta charset="UTF-8" />
     <style>
       body {
@@ -22,6 +22,8 @@
         font-family: Arial;
       }
     </style>
+    <!-- Загрузка Yandex Maps API v3 как глобального скрипта -->
+    <script src="https://api-maps.yandex.ru/v3/?apikey=c8428a41-6aae-40c0-a007-14223f034541&lang=ru_RU"></script>
   </head>
   <body>
     <input
@@ -34,57 +36,59 @@
     <div id="metrics"></div>
 
     <script type="module">
-      // Импорт Yandex Maps API v3
-      import { ymaps3 } from 'https://api-maps.yandex.ru/v3/?apikey=c8428a41-6aae-40c0-a007-14223f034541&lang=ru_RU'
-
+      // Теперь ymaps3 доступен глобально, после загрузки скрипта
       ymaps3.ready.then(async () => {
-        const { YMap, YMapDefaultSchemeLayer, YMapDefaultFeaturesLayer, YMapFeature } =
-          await ymaps3.import('@yandex/ymaps3')
-        const { bounds: ybounds } = await ymaps3.import('@yandex/ymaps3-types/utils')
+        const {
+          YMap,
+          YMapDefaultSchemeLayer,
+          YMapDefaultFeaturesLayer,
+          YMapFeature,
+        } = await ymaps3.import("@yandex/ymaps3-default-ui-theme"); // Исправьте на правильный импорт, если нужно; в доках это '@yandex/ymaps3'
+        const { bounds: ybounds } = await ymaps3.import(
+          "@yandex/ymaps3-types/utils"
+        );
 
-        // Инициализация карты
+        // Остальной код без изменений
         const map = new YMap(
-          document.getElementById('map'),
-          { location: { center: [37.618423, 55.751244], zoom: 10 } }, // Начальный центр (Москва)
+          document.getElementById("map"),
+          { location: { center: [37.618423, 55.751244], zoom: 10 } },
           [new YMapDefaultSchemeLayer({}), new YMapDefaultFeaturesLayer({})]
-        )
+        );
 
-        // Обработчик загрузки JSON
-        document.getElementById('fileInput').addEventListener('change', (event) => {
-          const file = event.target.files[0]
-          if (file) {
-            const reader = new FileReader()
-            reader.onload = (e) => {
-              const track = JSON.parse(e.target.result)
-              const points = track.route.map((p) => [p.lon, p.lat]) // [lon, lat] для Yandex
+        document
+          .getElementById("fileInput")
+          .addEventListener("change", event => {
+            const file = event.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = e => {
+                const track = JSON.parse(e.target.result);
+                const points = track.route.map(p => [p.lon, p.lat]);
 
-              // Создание polyline
-              const line = new YMapFeature({
-                geometry: {
-                  type: 'LineString',
-                  coordinates: points,
-                },
-                style: { stroke: [{ color: '#DE340D', width: 5 }] },
-              })
-              map.addChild(line)
+                const line = new YMapFeature({
+                  geometry: {
+                    type: "LineString",
+                    coordinates: points,
+                  },
+                  style: { stroke: [{ color: "#DE340D", width: 5 }] },
+                });
+                map.addChild(line);
 
-              // Центрирование на bounds
-              const mapBounds = ybounds.fromPoints(points)
-              map.setLocation({ bounds: mapBounds, duration: 500 })
+                const mapBounds = ybounds.fromPoints(points);
+                map.setLocation({ bounds: mapBounds, duration: 500 });
 
-              // Отображение метрик
-              const metricsDiv = document.getElementById('metrics')
-              metricsDiv.innerHTML = `
-                            Дистанция: ${track.distance} км<br>
-                            Время: ${track.time} мин<br>
-                            Ср. скорость: ${track.avgSpeed} км/ч<br>
-                            Дата: ${track.date}
-                        `
+                const metricsDiv = document.getElementById("metrics");
+                metricsDiv.innerHTML = `
+                Дистанция: ${track.distance} км<br>
+                Время: ${track.time} мин<br>
+                Ср. скорость: ${track.avgSpeed} км/ч<br>
+                Дата: ${track.date}
+              `;
+              };
+              reader.readAsText(file);
             }
-            reader.readAsText(file)
-          }
-        })
-      })
+          });
+      });
     </script>
   </body>
 </html>

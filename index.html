@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <title>Просмотр трека на Yandex Maps</title>
+    <meta charset="UTF-8" />
+    <style>
+      body {
+        margin: 0;
+      }
+      #map {
+        width: 100%;
+        height: 100vh;
+      }
+      #metrics {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        background: white;
+        padding: 10px;
+        border-radius: 5px;
+        box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+        font-family: Arial;
+      }
+    </style>
+  </head>
+  <body>
+    <input
+      type="file"
+      id="fileInput"
+      accept=".json"
+      style="position: absolute; top: 10px; left: 10px; z-index: 10"
+    />
+    <div id="map"></div>
+    <div id="metrics"></div>
+
+    <script type="module">
+      // Импорт Yandex Maps API v3
+      import { ymaps3 } from 'https://api-maps.yandex.ru/v3/?apikey=c8428a41-6aae-40c0-a007-14223f034541&lang=ru_RU'
+
+      ymaps3.ready.then(async () => {
+        const { YMap, YMapDefaultSchemeLayer, YMapDefaultFeaturesLayer, YMapFeature } =
+          await ymaps3.import('@yandex/ymaps3')
+        const { bounds: ybounds } = await ymaps3.import('@yandex/ymaps3-types/utils')
+
+        // Инициализация карты
+        const map = new YMap(
+          document.getElementById('map'),
+          { location: { center: [37.618423, 55.751244], zoom: 10 } }, // Начальный центр (Москва)
+          [new YMapDefaultSchemeLayer({}), new YMapDefaultFeaturesLayer({})]
+        )
+
+        // Обработчик загрузки JSON
+        document.getElementById('fileInput').addEventListener('change', (event) => {
+          const file = event.target.files[0]
+          if (file) {
+            const reader = new FileReader()
+            reader.onload = (e) => {
+              const track = JSON.parse(e.target.result)
+              const points = track.route.map((p) => [p.lon, p.lat]) // [lon, lat] для Yandex
+
+              // Создание polyline
+              const line = new YMapFeature({
+                geometry: {
+                  type: 'LineString',
+                  coordinates: points,
+                },
+                style: { stroke: [{ color: '#DE340D', width: 5 }] },
+              })
+              map.addChild(line)
+
+              // Центрирование на bounds
+              const mapBounds = ybounds.fromPoints(points)
+              map.setLocation({ bounds: mapBounds, duration: 500 })
+
+              // Отображение метрик
+              const metricsDiv = document.getElementById('metrics')
+              metricsDiv.innerHTML = `
+                            Дистанция: ${track.distance} км<br>
+                            Время: ${track.time} мин<br>
+                            Ср. скорость: ${track.avgSpeed} км/ч<br>
+                            Дата: ${track.date}
+                        `
+            }
+            reader.readAsText(file)
+          }
+        })
+      })
+    </script>
+  </body>
+</html>

@@ -6,6 +6,13 @@
     <style>
       body {
         margin: 0;
+        background: white;
+        color: black;
+        transition: background 0.3s, color 0.3s;
+      }
+      body.dark {
+        background: #121212;
+        color: white;
       }
       #map {
         width: 100%;
@@ -20,6 +27,53 @@
         border-radius: 5px;
         box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
         font-family: Arial;
+        transition: background 0.3s, color 0.3s;
+      }
+      body.dark #metrics {
+        background: #333;
+        box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+      }
+      /* Стили для свитчера */
+      .theme-switcher {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+      }
+      .theme-switcher input {
+        display: none;
+      }
+      .theme-switcher label {
+        cursor: pointer;
+        background: #ccc;
+        border-radius: 20px;
+        width: 40px;
+        height: 20px;
+        position: relative;
+        transition: background 0.3s;
+      }
+      .theme-switcher label::before {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 16px;
+        height: 16px;
+        background: white;
+        border-radius: 50%;
+        transition: left 0.3s;
+      }
+      .theme-switcher input:checked + label {
+        background: #4caf50;
+      }
+      .theme-switcher input:checked + label::before {
+        left: 22px;
+      }
+      .theme-switcher span {
+        margin-left: 10px;
+        font-family: Arial;
       }
     </style>
     <!-- Загрузка Yandex Maps API v3 как глобального скрипта -->
@@ -32,12 +86,16 @@
       accept=".json"
       style="position: absolute; top: 10px; left: 10px; z-index: 10"
     />
+    <div class="theme-switcher">
+      <input type="checkbox" id="themeToggle" />
+      <label for="themeToggle"></label>
+      <span>Тёмная тема</span>
+    </div>
     <div id="map"></div>
     <div id="metrics"></div>
 
     <script type="module">
       ymaps3.ready.then(() => {
-        // Основные классы доступны напрямую из ymaps3
         const {
           YMap,
           YMapDefaultSchemeLayer,
@@ -45,14 +103,29 @@
           YMapFeature,
         } = ymaps3;
 
-        // Инициализация карты
+        // Инициализация карты с начальной темой 'light'
+        let currentTheme = "light";
+        let schemeLayer = new YMapDefaultSchemeLayer({ theme: currentTheme });
+
         const map = new YMap(
           document.getElementById("map"),
           { location: { center: [37.618423, 55.751244], zoom: 10 } },
-          [new YMapDefaultSchemeLayer({}), new YMapDefaultFeaturesLayer({})]
+          [schemeLayer, new YMapDefaultFeaturesLayer({})]
         );
 
-        // Обработчик загрузки JSON
+        // Обработчик свитчера темы
+        const themeToggle = document.getElementById("themeToggle");
+        themeToggle.addEventListener("change", () => {
+          const newTheme = themeToggle.checked ? "dark" : "light";
+          document.body.classList.toggle("dark", themeToggle.checked);
+
+          // Замена слоя схемы для изменения темы карты
+          map.removeChild(schemeLayer);
+          schemeLayer = new YMapDefaultSchemeLayer({ theme: newTheme });
+          map.addChild(schemeLayer, 0); // Добавляем на нижний уровень (под features)
+        });
+
+        // Обработчик загрузки JSON (без изменений)
         document
           .getElementById("fileInput")
           .addEventListener("change", event => {
@@ -61,9 +134,8 @@
               const reader = new FileReader();
               reader.onload = e => {
                 const track = JSON.parse(e.target.result);
-                const points = track.route.map(p => [p.lon, p.lat]); // [lon, lat]
+                const points = track.route.map(p => [p.lon, p.lat]);
 
-                // Создание polyline
                 const line = new YMapFeature({
                   geometry: {
                     type: "LineString",
@@ -84,18 +156,16 @@
                     [maxLon, maxLat],
                   ];
 
-                  // Центрирование на bounds
                   map.setLocation({ bounds: mapBounds, duration: 500 });
                 }
 
-                // Отображение метрик
                 const metricsDiv = document.getElementById("metrics");
                 metricsDiv.innerHTML = `
-          Дистанция: ${track.distance} км<br>
-          Время: ${track.time} мин<br>
-          Ср. скорость: ${track.avgSpeed} км/ч<br>
-          Дата: ${track.date}
-        `;
+                Дистанция: ${track.distance} км<br>
+                Время: ${track.time} мин<br>
+                Ср. скорость: ${track.avgSpeed} км/ч<br>
+                Дата: ${track.date}
+              `;
               };
               reader.readAsText(file);
             }

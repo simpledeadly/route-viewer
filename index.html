@@ -36,25 +36,23 @@
     <div id="metrics"></div>
 
     <script type="module">
-      // Теперь ymaps3 доступен глобально, после загрузки скрипта
-      ymaps3.ready.then(async () => {
+      ymaps3.ready.then(() => {
+        // Основные классы доступны напрямую из ymaps3
         const {
           YMap,
           YMapDefaultSchemeLayer,
           YMapDefaultFeaturesLayer,
           YMapFeature,
-        } = await ymaps3.import("@yandex/ymaps3-default-ui-theme"); // Исправьте на правильный импорт, если нужно; в доках это '@yandex/ymaps3'
-        const { bounds: ybounds } = await ymaps3.import(
-          "@yandex/ymaps3-types/utils"
-        );
+        } = ymaps3;
 
-        // Остальной код без изменений
+        // Инициализация карты
         const map = new YMap(
           document.getElementById("map"),
           { location: { center: [37.618423, 55.751244], zoom: 10 } },
           [new YMapDefaultSchemeLayer({}), new YMapDefaultFeaturesLayer({})]
         );
 
+        // Обработчик загрузки JSON
         document
           .getElementById("fileInput")
           .addEventListener("change", event => {
@@ -63,8 +61,9 @@
               const reader = new FileReader();
               reader.onload = e => {
                 const track = JSON.parse(e.target.result);
-                const points = track.route.map(p => [p.lon, p.lat]);
+                const points = track.route.map(p => [p.lon, p.lat]); // [lon, lat]
 
+                // Создание polyline
                 const line = new YMapFeature({
                   geometry: {
                     type: "LineString",
@@ -74,16 +73,29 @@
                 });
                 map.addChild(line);
 
-                const mapBounds = ybounds.fromPoints(points);
-                map.setLocation({ bounds: mapBounds, duration: 500 });
+                // Расчёт bounds вручную
+                if (points.length > 0) {
+                  let minLon = Math.min(...points.map(p => p[0]));
+                  let maxLon = Math.max(...points.map(p => p[0]));
+                  let minLat = Math.min(...points.map(p => p[1]));
+                  let maxLat = Math.max(...points.map(p => p[1]));
+                  const mapBounds = [
+                    [minLon, minLat],
+                    [maxLon, maxLat],
+                  ];
 
+                  // Центрирование на bounds
+                  map.setLocation({ bounds: mapBounds, duration: 500 });
+                }
+
+                // Отображение метрик
                 const metricsDiv = document.getElementById("metrics");
                 metricsDiv.innerHTML = `
-                Дистанция: ${track.distance} км<br>
-                Время: ${track.time} мин<br>
-                Ср. скорость: ${track.avgSpeed} км/ч<br>
-                Дата: ${track.date}
-              `;
+          Дистанция: ${track.distance} км<br>
+          Время: ${track.time} мин<br>
+          Ср. скорость: ${track.avgSpeed} км/ч<br>
+          Дата: ${track.date}
+        `;
               };
               reader.readAsText(file);
             }

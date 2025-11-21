@@ -125,6 +125,40 @@
           map.addChild(schemeLayer, 0); // Добавляем на нижний уровень (под features)
         });
 
+        class GPSKalmanFilter {
+          constructor(decay = 3) {
+            this.decay = decay;
+            this.variance = -1;
+            this.minAccuracy = 1;
+          }
+
+          process(lat, lng, accuracy, timestampInMs) {
+            if (accuracy < this.minAccuracy) accuracy = this.minAccuracy;
+
+            if (this.variance < 0) {
+              this.timestampInMs = timestampInMs;
+              this.lat = lat;
+              this.lng = lng;
+              this.variance = accuracy * accuracy;
+            } else {
+              const timeIncMs = timestampInMs - this.timestampInMs;
+
+              if (timeIncMs > 0) {
+                this.variance += (timeIncMs * this.decay * this.decay) / 1000;
+                this.timestampInMs = timestampInMs;
+              }
+
+              const _k = this.variance / (this.variance + accuracy * accuracy);
+              this.lat += _k * (lat - this.lat);
+              this.lng += _k * (lng - this.lng);
+
+              this.variance = (1 - _k) * this.variance;
+            }
+
+            return [this.lng, this.lat];
+          }
+        }
+
         // Обработчик загрузки JSON (без изменений)
         document
           .getElementById("fileInput")
@@ -134,23 +168,42 @@
               const reader = new FileReader();
               reader.onload = e => {
                 const track = JSON.parse(e.target.result);
-                const points = track.route.map(p => [p.lon, p.lat]);
+                const rawPoints = track.route.map(p => ({
+                  lat: p.lat,
+                  lon: p.lon /*, timestamp: p.timestamp если есть */,
+                }));
 
+                // Применяем фильтр Калмана
+                const kalmanFilter = new GPSKalmanFilter(3); // decay = 3 м/с
+                const smoothedPoints = [];
+                const defaultAccuracy = 5; // Фиксированная точность в метрах (подстройте)
+                rawPoints.forEach((p, index) => {
+                  const timestampInMs = index * 1000; // Имитация: 1 сек на точку (если есть p.timestamp, используйте p.timestamp * 1000)
+                  const [smoothedLon, smoothedLat] = kalmanFilter.process(
+                    p.lat,
+                    p.lon,
+                    defaultAccuracy,
+                    timestampInMs
+                  );
+                  smoothedPoints.push([smoothedLon, smoothedLat]);
+                });
+
+                // Отрисовка сглаженной линии
                 const line = new YMapFeature({
                   geometry: {
                     type: "LineString",
-                    coordinates: points,
+                    coordinates: smoothedPoints,
                   },
                   style: { stroke: [{ color: "#DE340D", width: 5 }] },
                 });
                 map.addChild(line);
 
-                // Расчёт bounds вручную
-                if (points.length > 0) {
-                  let minLon = Math.min(...points.map(p => p[0]));
-                  let maxLon = Math.max(...points.map(p => p[0]));
-                  let minLat = Math.min(...points.map(p => p[1]));
-                  let maxLat = Math.max(...points.map(p => p[1]));
+                // Расчёт bounds на основе сглаженных точек
+                if (smoothedPoints.length > 0) {
+                  let minLon = Math.min(...smoothedPoints.map(p => p[0]));
+                  let maxLon = Math.max(...smoothedPoints.map(p => p[0]));
+                  let minLat = Math.min(...smoothedPoints.map(p => p[1]));
+                  let maxLat = Math.max(...smoothedPoints.map(p => p[1]));
                   const mapBounds = [
                     [minLon, minLat],
                     [maxLon, maxLat],
